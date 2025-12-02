@@ -193,7 +193,7 @@ jobs:
           for pkg in "${PACKAGES[@]}"; do
             if [ -d "$BASE_PATH/$pkg" ]; then
               echo "✅ $pkg/" >> $GITHUB_STEP_SUMMARY
-              ((SCORE++))
+              SCORE=$((SCORE + 1))
             else
               echo "❌ $pkg/ - MISSING" >> $GITHUB_STEP_SUMMARY
             fi
