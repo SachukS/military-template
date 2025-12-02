@@ -719,74 +719,69 @@ jobs:
         id: newman
         continue-on-error: true
         run: |
-          # Run Newman without colors for easier parsing
+          # Run Newman with JSON reporter for easy parsing
           newman run postman-collection.json \
-            --reporters cli,htmlextra \
+            --reporters cli,htmlextra,json \
             --reporter-htmlextra-export newman-report.html \
-            --reporter-htmlextra-darkTheme \
+            --reporter-json-export newman-results.json \
             --no-color \
             > newman-output.txt 2>&1
 
           NEWMAN_EXIT_CODE=$?
           echo "exit_code=$NEWMAN_EXIT_CODE" >> $GITHUB_OUTPUT
 
-          # Show newman output for debugging
-          echo "=== Newman Output ===" >&2
-          cat newman-output.txt >&2
-          echo "=== End Newman Output ===" >&2
+          # Parse JSON results (much more reliable!)
+          if [ -f newman-results.json ]; then
+            # Extract stats from JSON
+            TOTAL=$(jq '.run.stats.requests.total // 0' newman-results.json)
+            FAILED=$(jq '.run.stats.requests.failed // 0' newman-results.json)
+            PASSED=$((TOTAL - FAILED))
 
-          # Extract test results from the summary table
-          # Looking for: │                requests │                10 │                 0 │
-          TOTAL=$(grep "│.*requests.*│" newman-output.txt | grep -oP '\│\s+\d+\s+\│' | grep -oP '\d+' | head -1 || echo "0")
-          FAILED=$(grep "│.*requests.*│" newman-output.txt | grep -oP '\│\s+\d+\s+\│' | grep -oP '\d+' | tail -1 || echo "0")
+            echo "total_tests=$TOTAL" >> $GITHUB_OUTPUT
+            echo "passed_tests=$PASSED" >> $GITHUB_OUTPUT
+            echo "failed_tests=$FAILED" >> $GITHUB_OUTPUT
 
-          # Set defaults if extraction failed
-          if [ -z "$TOTAL" ]; then
-            TOTAL=0
-          fi
-          if [ -z "$FAILED" ]; then
-            FAILED=0
-          fi
-
-          PASSED=$((TOTAL - FAILED))
-
-          echo "total_tests=$TOTAL" >> $GITHUB_OUTPUT
-          echo "passed_tests=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed_tests=$FAILED" >> $GITHUB_OUTPUT
-
-          echo "### 🧪 API Integration Tests Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Variant:** ${{ needs.detect-variant.outputs.variant_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Test Results:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Total Requests: $TOTAL" >> $GITHUB_STEP_SUMMARY
-          echo "- Passed: ✅ $PASSED" >> $GITHUB_STEP_SUMMARY
-          echo "- Failed: ❌ $FAILED" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ "$TOTAL" -eq 0 ]; then
-            echo "⚠️ **No tests were executed. Newman may have failed to run.**" >> $GITHUB_STEP_SUMMARY
-          elif [ "$NEWMAN_EXIT_CODE" -eq 0 ] && [ "$FAILED" -eq 0 ]; then
-            echo "✅ **All API tests passed!**" >> $GITHUB_STEP_SUMMARY
+            echo "### 🧪 API Integration Tests Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Summary:**" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ All $TOTAL requests completed successfully" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ All assertions passed" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ CRUD operations work correctly" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ Validation errors handled properly (400)" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ Duplicate detection works (409)" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ Not found errors handled (404)" >> $GITHUB_STEP_SUMMARY
+            echo "**Variant:** ${{ needs.detect-variant.outputs.variant_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Test Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Total Requests: $TOTAL" >> $GITHUB_STEP_SUMMARY
+            echo "- Passed: ✅ $PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed: ❌ $FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$FAILED" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
+              echo "✅ **All API tests passed!**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Summary:**" >> $GITHUB_STEP_SUMMARY
+              echo "- ✓ All $TOTAL requests completed successfully" >> $GITHUB_STEP_SUMMARY
+              echo "- ✓ CRUD operations work correctly" >> $GITHUB_STEP_SUMMARY
+              echo "- ✓ Validation errors handled properly (400)" >> $GITHUB_STEP_SUMMARY
+              echo "- ✓ Duplicate detection works (409)" >> $GITHUB_STEP_SUMMARY
+              echo "- ✓ Not found errors handled (404)" >> $GITHUB_STEP_SUMMARY
+            elif [ "$TOTAL" -eq 0 ]; then
+              echo "⚠️ **No tests were executed.**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **$FAILED of $TOTAL tests failed.**" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "❌ **Some API tests failed. Review the detailed report.**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Newman results not found.**" >> $GITHUB_STEP_SUMMARY
+            echo "total_tests=0" >> $GITHUB_OUTPUT
+            echo "passed_tests=0" >> $GITHUB_OUTPUT
+            echo "failed_tests=0" >> $GITHUB_OUTPUT
           fi
-        
-      - name: Upload Newman report
+
+          exit 0
+
+      - name: Upload Newman reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: newman-report
+          name: newman-reports
           path: |
             newman-report.html
+            newman-results.json
             newman-output.txt
             postman-collection.json
 
