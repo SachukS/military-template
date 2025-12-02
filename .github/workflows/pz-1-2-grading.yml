@@ -720,24 +720,38 @@ jobs:
         continue-on-error: true
         run: |
           newman run postman-collection.json \
-          --reporters cli,htmlextra \
-          --reporter-htmlextra-export newman-report.html \
-          --reporter-htmlextra-darkTheme \
-          --color on \
-          > newman-output.txt 2>&1
-          
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export newman-report.html \
+            --reporter-htmlextra-darkTheme \
+            --color on \
+            > newman-output.txt 2>&1
+
           NEWMAN_EXIT_CODE=$?
           echo "exit_code=$NEWMAN_EXIT_CODE" >> $GITHUB_OUTPUT
-          
-          # Extract test results
-          TOTAL=$(grep -oP 'executed.*?\K\d+(?=\/)' newman-output.txt | head -1 || echo "0")
-          FAILED=$(grep -oP 'failed.*?\K\d+' newman-output.txt | head -1 || echo "0")
+
+          # Show newman output for debugging
+          echo "=== Newman Output ===" >&2
+          cat newman-output.txt >&2
+          echo "=== End Newman Output ===" >&2
+
+          # Extract test results with better error handling
+          TOTAL=$(grep -oP 'executed.*?\K\d+(?=\/)' newman-output.txt | head -1 || echo "")
+          FAILED=$(grep -oP 'failed.*?\K\d+' newman-output.txt | head -1 || echo "")
+
+          # Set defaults if extraction failed
+          if [ -z "$TOTAL" ]; then
+            TOTAL=0
+          fi
+          if [ -z "$FAILED" ]; then
+            FAILED=0
+          fi
+
           PASSED=$((TOTAL - FAILED))
-          
+
           echo "total_tests=$TOTAL" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED" >> $GITHUB_OUTPUT
-          
+
           echo "### 🧪 API Integration Tests Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Variant:** ${{ needs.detect-variant.outputs.variant_name }}" >> $GITHUB_STEP_SUMMARY
@@ -747,31 +761,40 @@ jobs:
           echo "- Passed: ✅ $PASSED" >> $GITHUB_STEP_SUMMARY
           echo "- Failed: ❌ $FAILED" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "$NEWMAN_EXIT_CODE" -eq 0 ]; then
-          echo "✅ **All API tests passed!**" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "⚠️ **No tests were executed. Newman may have failed to run.**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Newman Output</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat newman-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          elif [ "$NEWMAN_EXIT_CODE" -eq 0 ]; then
+            echo "✅ **All API tests passed!**" >> $GITHUB_STEP_SUMMARY
           else
-          echo "❌ **Some API tests failed. Review the detailed report.**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Some API tests failed. Review the detailed report.**" >> $GITHUB_STEP_SUMMARY
           fi
         
-          - name: Upload Newman report
-            if: always()
-            uses: actions/upload-artifact@v4
-            with:
-              name: newman-report
-              path: |
-                newman-report.html
-                newman-output.txt
-                postman-collection.json
-        
-          - name: Stop application
-            if: always()
-            run: |
-              kill ${{ env.APP_PID }} || true
+      - name: Upload Newman report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: |
+            newman-report.html
+            newman-output.txt
+            postman-collection.json
 
-        # ============================================================================
-        # JOB 11: Swagger/OpenAPI Documentation Check
-        # ============================================================================
+      - name: Stop application
+        if: always()
+        run: |
+          kill ${{ env.APP_PID }} || true
+
+    # ============================================================================
+    # JOB 11: Swagger/OpenAPI Documentation Check
+    # ============================================================================
   swagger-check:
     name: 📚 Swagger Documentation Check
     runs-on: ubuntu-latest
