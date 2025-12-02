@@ -3,7 +3,7 @@ name: PZ 1/2 - Automated Grading
 on:
   pull_request:
     branches:
-      - main
+      - master
     paths:
       - 'src/**'
       - 'pom.xml'
