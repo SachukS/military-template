@@ -39,30 +39,68 @@
 - Swagger/OpenAPI
 - Maven
 
-## 🚀 Швидкий Старт
+## 🚀 Швидкий Старт (Варіант A — Управління МТЗ)
+
+### Перв передумови
+- JDK 17+ (або Java 25+)
+- Docker та Docker Compose (рекомендовано)
+- Git
+
+### Установка
+
+1. **Запуск PostgreSQL через Docker Compose:**
+   ```powershell
+   docker compose up -d
+   docker compose ps
+   ```
+   Проверка: контейнер `military-db` має статус `Up`.
+
+2. **Компіляція та запуск приложення:**
+   
+   **Через Maven Wrapper (найпростіше):**
+   ```powershell
+   # Windows PowerShell — в каталозі проєкту
+   .\mvnw.cmd -DskipTests clean package
+   .\mvnw.cmd spring-boot:run
+   ```
+   
+   **Або запуск збудованого JAR:**
+   ```powershell
+   java -jar target\military-template-1.0.0.jar
+   ```
+
+3. **Перевірка API:**
+   - Swagger UI: http://localhost:8080/swagger-ui.html
+   - API base: http://localhost:8080/api
+
+### Основні Endpoints (Варіант A)
+
+| Метод | Endpoint | Опис |
+|-------|----------|------|
+| POST | `/api/supply-categories` | Створити категорію матеріалу |
+| GET | `/api/supply-categories` | Отримати всі категорії |
+| GET | `/api/supply-categories/{id}` | Отримати категорію по ID |
+| POST | `/api/supply-items` | Створити позицію матеріалу |
+| GET | `/api/supply-items` | Отримати всі позиції |
+| GET | `/api/supply-items/{id}` | Отримати позицію по ID |
+| PUT | `/api/supply-items/{id}` | Оновити позицію |
+| DELETE | `/api/supply-items/{id}` | Видалити позицію |
+| POST | `/api/warehouses` | Створити склад |
+| GET | `/api/warehouses` | Отримати всі склади |
+
+### Приклад запиту (cURL)
 
 ```bash
-# Клонування репозиторію
-git clone <repository-url>
-cd military-template
-
-# Запуск PostgreSQL (через Docker)
-docker run -d \
-  --name postgres-military \
-  -e POSTGRES_DB=military_db \
-  -e POSTGRES_USER=military_user \
-  -e POSTGRES_PASSWORD=military_pass \
-  -p 5432:5432 \
-  postgres:15-alpine
-
-# Компіляція та запуск
-mvn clean install
-mvn spring-boot:run
+# Створення категорії боєприпасів
+curl -X POST http://localhost:8080/api/supply-categories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Боєприпаси 5.45мм",
+    "code": "AMMO-545",
+    "description": "Стандартні боєприпаси",
+    "requiresColdStorage": false
+  }'
 ```
-
-API буде доступне за адресою: `http://localhost:8080`
-
-Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ## 📋 Структура Проєкту
 
